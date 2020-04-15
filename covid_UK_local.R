@@ -1,6 +1,4 @@
-# Set your working directory here and download / install packages (tidverse, Hmisc, lubridate, broom)
-
-setwd("~/Dropbox/Programming_Books/COVID")
+#libraries
 library(tidyverse)
 library(Hmisc)
 library(lubridate)
@@ -8,7 +6,7 @@ library(broom)
 
 # All Google data and demographics from https://github.com/datasciencecampus/google-mobility-reports-data
 
-uk_local <- read_csv("google-mobility-reports-data-master/csvs/international_local_area_trends_G20_20200410.csv")
+uk_local <- read_csv("./mobility_data/csvs/international_local_area_trends_G20_20200410.csv")
 
 uk_local <- uk_local %>% 
   filter(Country=="GB")
@@ -20,7 +18,7 @@ uk_long <- uk_local %>%
   pivot_longer(-location:-category, names_to="date", values_to="difference")
 
 uk_wide <- uk_long %>% 
-  pivot_wider(names_from=category, values_from =difference) %>% 
+  pivot_wider(names_from=category, values_from=difference) %>% 
   mutate(date = as.Date(date)) %>% 
   rename (grocery = `Grocery & pharmacy`,
           parks = Parks,
@@ -31,12 +29,12 @@ uk_wide <- uk_long %>%
 
 # Match to demographic data - calculate age profile of each unit
 
-#uk_lookup <- read_csv("google-mobility-reports-data-master/geography/Google_Places_Lookup_Table_200403.csv")
+#uk_lookup <- read_csv("mobility_data/geography/Google_Places_Lookup_Table_200403.csv")
 
 #uk_lookup <- uk_lookup %>% 
  # rename(location = GPL_NM)
 
-uk_population <- read_csv("google-mobility-reports-data-master/geography/Google_Places_All_UK_2018_Population_Estimates.csv")
+uk_population <- read_csv("./mobility_data/geography/Google_Places_All_UK_2018_Population_Estimates.csv")
 
 uk_population <- uk_population %>% 
   mutate(pop_under_10 = rowSums(select(., A_0:A_9))*100/ALL_AGES,
@@ -60,10 +58,8 @@ uk_final <- uk_wide %>%
   left_join(uk_population, by = "location")
 
 
-
-
 # ONS Lookup to match local authority districts to counties: http://geoportal.statistics.gov.uk/datasets/363d7613224e4d359558969133a458e6_0
-county_lad_england <- read_csv("Local_Authority_District_to_County_December_2018_Lookup_in_England.csv")
+county_lad_england <- read_csv("./other_data/Local_Authority_District_to_County_December_2018_Lookup_in_England.csv")
 
 county_lad_england <- county_lad_england %>% 
   rename(Area_Code = LAD18CD)
@@ -71,7 +67,7 @@ county_lad_england <- county_lad_england %>%
 # Local authority level Brexit results from Electoral Commission: 
 #https://www.electoralcommission.org.uk/who-we-are-and-what-we-do/elections-and-referendums/past-elections-and-referendums/eu-referendum/results-and-turnout-eu-referendum
 
-uk_brexit <- read_csv("EU-referendum-result-data.csv")
+uk_brexit <- read_csv("./other_data/EU-referendum-result-data.csv")
 
 uk_brexit <- uk_brexit %>% 
   left_join (county_lad_england, by = "Area_Code")
@@ -143,8 +139,7 @@ uk_final %>%
   theme_classic()+
   ylab("Percentage Reduction in Time at Workplace (April 3rd)")+xlab("Remain Vote at LA / County")
 
-ggsave("brexit_social_distancing.pdf", width = 10, height = 10)
-ggsave("brexit_social_distancing.png", width = 8, height = 8)
+ggsave("./fig/brexit_social_distancing.png", width = 8, height = 8)
 
 # By region
 
@@ -158,8 +153,7 @@ uk_final %>%
   ylab("Percentage Reduction in Time at Workplace (April 3rd)")+xlab("Remain Vote at LA / County")+
   facet_wrap(~REGION_NM)
 
-ggsave("regions.pdf", width = 8, height=  8)
-ggsave("regions.png", width = 8, height=  8)
+ggsave("./fig/regions.png", width = 8, height=  8)
 
 ### Regression Analyses
  
@@ -176,46 +170,65 @@ uk_final %>%
 
 # Time series of workplace coefficients
 
-coef=NULL
-se=NULL
-date = NULL
-for (i in 0:33) {
-  reg<-uk_final %>% 
-    filter(date == (i+as.Date ("2020-03-03"))) %>% 
-    lm(data =., workplace ~ final_remain+pop_under_30+pop_over_70+density+I(REGION_NM)) 
-    coef[i]<- reg$coefficient[2]
-    se[i]<-summary(reg)$coefficients["final_remain", "Std. Error"]
-    date[i] =i
-    
- 
-}
+#map for faster, tidier and grab all coeficiens from regression
+coefs_map <- map_df(unique(uk_final$date), function(date_i) {
+  filtered_data <- filter(uk_final, date == date_i) %>%
+    lm(data =., workplace ~ final_remain+pop_under_30+pop_over_70+density+I(REGION_NM)) %>%
+    broom::tidy() %>%
+    rename(coef = estimate, se = std.error) %>%
+    mutate(date = date_i)
+})
 
-c<-as.data.frame(coef)
-s<-as.data.frame(se)
-d<-as.data.frame(date)
-coefs<-cbind(d, c, s)
-
-coefs<-as.tbl(coefs)
-
-coefs <- coefs %>% 
+coefs_map <- coefs_map %>% 
   mutate(upper = coef+2*se,
          lower = coef-2*se)
 
-coefs %>% 
+#is it the weekend
+#you probably want a case_when for easter friday and monday which I assume isn't in the dataset yet
+weekend_df <- data.frame(date = unique(coefs_map$date)) %>%
+  mutate(day = weekdays(date)) %>%
+  mutate(weekend= case_when(
+    day %in% c("Saturday", "Sunday") ~ 1
+    #day is easter monday/friday ~ 1
+  ))
+
+coefs_map %>% 
+  left_join(weekend_df) %>%
   ggplot(aes(x = date, y = coef))+
   geom_line()+
   geom_ribbon(aes(ymin=lower, ymax = upper, alpha=0.3))+
+  #doesn't play very well with all the faceting etc. and cba work it out
+  #geom_rect(aes(xmin = date, xmax = lead(date), ymin = -Inf, ymax = Inf, fill = "green"), alpha = 0.2) +
+  geom_hline(yintercept = 0, linetype = "dashed", colour = "red") +
+  #lockdown
+  geom_vline(xintercept = as.Date("2020-03-23"), linetype = "dashed", colour = "darkblue", size = 2) +
   xlab("Date")+ylab("Coefficient on Remain Vote")+
   theme_classic()+
-  theme(legend.position = "none")+
-  scale_x_continuous(breaks = c(1, 8, 15, 22, 29), labels= c("March 4th", "March 11th", "March 18th", "March 25th", "April 1st"))
+  theme(legend.position = "none") +
+  facet_wrap(~term, scales = "free_y")
 
-ggsave("time_series.pdf", height = 8, width = 8)
-ggsave("time_series.png", height = 8, width = 8)
+ggsave("./fig/regression_coefs_time_series.png", height = 8, width = 8)
+
+#just filter out the original graph (only final_remain)
+coefs_map %>% 
+  left_join(weekend_df) %>%
+  #for the over 70 graph obvs just filter for that here
+  filter(term == "final_remain") %>%
+  ggplot(aes(x = date, y = coef))+
+  geom_line()+
+  geom_ribbon(aes(ymin=lower, ymax = upper, alpha=0.3))+
+  geom_rect(aes(xmin = date, xmax = lead(date), ymin = -Inf, ymax = Inf, fill = factor(weekend)), alpha = 0.2) +
+  scale_fill_manual(values = c("green", NA)) +
+  geom_hline(yintercept = 0, linetype = "dashed", colour = "red") +
+  geom_vline(xintercept = as.Date("2020-03-23"), linetype = "dashed", colour = "darkblue", size = 2) +
+  xlab("Date")+ylab("Coefficient on Remain Vote")+
+  theme_classic()+
+  theme(legend.position = "none")
+
+ggsave("./fig/remain_regression_coefs_time_series.png", height = 8, width = 8)
+
 
 # Partial Regression Graph
-
-library(broom)
 
 uk_april_3 <- uk_final %>% 
   filter(date == "2020-04-03")
@@ -224,7 +237,6 @@ uk_april_3 <- uk_final %>%
 wp_fit<-    lm(data =uk_april_3, workplace ~ pop_under_30+pop_over_70+density+I(REGION_NM))
 rem_fit<-   lm(data =uk_april_3, final_remain ~ pop_under_30+pop_over_70+density+I(REGION_NM))
 
-rm(uk_final_reg)
 uk_final_reg <- augment(wp_fit, uk_april_3)
 uk_final_reg <- uk_final_reg %>% 
   select(location:.resid) %>% 
@@ -250,8 +262,7 @@ uk_final_reg %>%
   theme_classic()+
   ylab("Percentage Reduction in Time at Workplace - Residual (April 3)")+xlab("Remain Vote at LA / County (Residual)")
 
-ggsave("apr_3_partial_regression.pdf", width=10, height=10)
-ggsave("apr_3_partial_regression.png", width=10, height=10)
+ggsave("./fig/apr_3_partial_regression.png", width=10, height=10)
 
 
 # Different Activity Measures
@@ -318,5 +329,4 @@ types %>%
   geom_abline(slope = 0, intercept = 0 , linetype = "dotted")+
   theme_classic()
 
-ggsave("types_activity.pdf", width = 10, height = 10)
-ggsave("types_activity.png", width = 10, height =10)
+ggsave("./fig/types_activity.png", width = 10, height =10)
