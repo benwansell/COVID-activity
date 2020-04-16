@@ -64,6 +64,96 @@ county_lad_england <- read_csv("./other_data/Local_Authority_District_to_County_
 county_lad_england <- county_lad_england %>% 
   rename(Area_Code = LAD18CD)
 
+
+# GDP per capita and growth by district or county or London: Taken from https://www.ons.gov.uk/economy/grossdomesticproductgdp/datasets/regionalgrossdomesticproductlocalauthorities
+
+gdp_percap <- read_csv("other_data/gdp_percap.csv", 
+                       skip = 1)
+
+gdp_percap<- gdp_percap %>% 
+  select(`NUTS1 Region`, `LA code`, `LA name`, `20183`) %>% 
+  rename(region = `NUTS1 Region`,
+         Area_Code = `LA code`,
+         Area_Name = `LA name`,
+         gdp_per_cap = `20183`) %>% 
+  filter(!is.na(region)) %>% 
+  slice(1:382)
+
+
+gdp_pc_growth <- read_csv("other_data/gdp_percap_growth.csv", 
+                       skip = 1)
+
+gdp_pc_growth<- gdp_pc_growth %>% 
+  select( `LA code`,  `20183`) %>% 
+  rename(Area_Code = `LA code`,
+         gdp_pc_growth = `20183`) %>% 
+  filter(!is.na(Area_Code))
+
+population <- read_csv("other_data/pop_by_la.csv", 
+                       skip = 1)
+
+population<- population %>% 
+  select( `LA code`,  `2018`) %>% 
+  rename(Area_Code = `LA code`,
+         population = `2018`) %>% 
+  filter(!is.na(Area_Code))
+
+gdp_data <- gdp_percap %>% 
+  left_join(gdp_pc_growth, by="Area_Code") %>% 
+  left_join(population, by = "Area_Code")
+
+gdp_data <- gdp_data %>% 
+  left_join (county_lad_england, by = "Area_Code")
+
+# Counties
+
+gdp_data_co <- gdp_data %>% 
+  group_by(CTY18CD, CTY18NM) %>%
+  summarise(county_gdp_pc = weighted.mean(gdp_per_cap, population, na.rm=T),
+            county_gdp_pc_growth = weighted.mean(gdp_pc_growth, population, na.rm=T))  %>% 
+  rename(GSS_CD = CTY18CD)
+
+gdp_data_la <- gdp_data %>% 
+  mutate(la_gdp_pc = gdp_per_cap,
+         la_gdp_pc_growth = gdp_pc_growth)  %>% 
+  select(Area_Code, Area_Name, la_gdp_pc, la_gdp_pc_growth) %>% 
+  rename(GSS_CD = Area_Code)
+
+uk_final <- uk_final %>% 
+  left_join(gdp_data_co, by ="GSS_CD") %>% 
+  left_join(gdp_data_la, by ="GSS_CD")
+
+uk_final %>% 
+  group_by(location) %>% 
+  summarise(county_gdp = mean(county_gdp_pc, na.rm=T),
+            la_gdp = mean(la_gdp_pc, na.rm=T)) %>% 
+  View()
+
+uk_final <- uk_final %>% 
+  mutate(final_gdp_cap  = if_else(!is.na(la_gdp_pc), la_gdp_pc, county_gdp_pc),
+         final_gdp_pc_growth  = if_else(!is.na(la_gdp_pc_growth), la_gdp_pc_growth, county_gdp_pc_growth),
+         final_gdp_cap = case_when(location=="Glasgow City" ~ 35934,
+                                  location=="Fife" ~25701,
+                                  location=="Dorset" ~ 24267,
+                                  location=="Greater London" ~ 54685,
+                                  location=="North Lanarkshire" ~ 25453,
+                                  location=="Nottinghamshire" ~21543,
+                                  location=="Perth and Kinross" ~ 31413,
+                                  location=="Shropshire"~ 23309,
+                                  TRUE ~ final_gdp_cap),
+         final_gdp_pc_growth = case_when(location=="Glasgow City" ~ 1.2,
+                                   location=="Fife" ~-4.8,
+                                   location=="Dorset" ~ 1.7,
+                                   location=="Greater London" ~ 0.01,
+                                   location=="North Lanarkshire" ~ 0.5,
+                                   location=="Nottinghamshire" ~1.88,
+                                   location=="Perth and Kinross" ~ -4.2,
+                                   location=="Shropshire"~ -1.5,
+                                   TRUE ~ final_gdp_pc_growth))
+
+# Local authorities
+
+
 # Local authority level Brexit results from Electoral Commission: 
 #https://www.electoralcommission.org.uk/who-we-are-and-what-we-do/elections-and-referendums/past-elections-and-referendums/eu-referendum/results-and-turnout-eu-referendum
 
@@ -71,6 +161,8 @@ uk_brexit <- read_csv("./other_data/EU-referendum-result-data.csv")
 
 uk_brexit <- uk_brexit %>% 
   left_join (county_lad_england, by = "Area_Code")
+
+
 
 #Calculate Brexit vote at both local authority (in data) and county (weighted average of local authorities in county)
 
@@ -91,8 +183,7 @@ uk_brexit_la <- uk_brexit %>%
 
 # Join population, Brexit vote (countries and local authorities) to main dataset
 
-uk_final <- uk_wide %>% 
-  left_join(uk_population, by = "location") %>% 
+uk_final <- uk_final %>%
   left_join(uk_brexit_co, by = "GSS_CD") %>% 
   left_join(uk_brexit_la, by = "GSS_CD")
 
@@ -162,10 +253,15 @@ uk_final %>%
   lm(data =., workplace ~ final_remain+pop_under_30+pop_over_70+density+I(REGION_NM)) %>% 
   summary()
 
+uk_final %>% 
+  filter(date == "2020-04-03") %>% 
+  lm(data =., workplace ~ final_remain+ final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+density+I(REGION_NM)) %>% 
+  summary()
+
 
 uk_final %>% 
   filter(date == as.Date("2020-03-17")) %>% 
-  lm(data =., workplace ~ final_remain+pop_under_30+pop_over_70+density+I(REGION_NM)) %>% 
+  lm(data =., workplace ~ final_remain++ final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+density+I(REGION_NM)) %>% 
   summary()
 
 # Time series of workplace coefficients
@@ -173,7 +269,7 @@ uk_final %>%
 #map for faster, tidier and grab all coeficiens from regression
 coefs_map <- map_df(unique(uk_final$date), function(date_i) {
   filtered_data <- filter(uk_final, date == date_i) %>%
-    lm(data =., workplace ~ final_remain+pop_under_30+pop_over_70+density+I(REGION_NM)) %>%
+    lm(data =., workplace ~ final_remain+final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+density+I(REGION_NM)) %>%
     broom::tidy() %>%
     rename(coef = estimate, se = std.error) %>%
     mutate(date = date_i)
@@ -181,7 +277,8 @@ coefs_map <- map_df(unique(uk_final$date), function(date_i) {
 
 coefs_map <- coefs_map %>% 
   mutate(upper = coef+2*se,
-         lower = coef-2*se)
+         lower = coef-2*se) %>% 
+  filter(term %in% c("final_remain", "final_gdp_cap", "final_gdp_pc_growth", "pop_under_30", "pop_over_70", "density"))
 
 #is it the weekend
 #you probably want a case_when for easter friday and monday which I assume isn't in the dataset yet
@@ -196,16 +293,18 @@ coefs_map %>%
   left_join(weekend_df) %>%
   ggplot(aes(x = date, y = coef))+
   geom_line()+
-  geom_ribbon(aes(ymin=lower, ymax = upper, alpha=0.3))+
+  geom_ribbon(aes(ymin=lower, ymax = upper, alpha=0.3), color="lightgray")+
   #doesn't play very well with all the faceting etc. and cba work it out
   #geom_rect(aes(xmin = date, xmax = lead(date), ymin = -Inf, ymax = Inf, fill = "green"), alpha = 0.2) +
   geom_hline(yintercept = 0, linetype = "dashed", colour = "red") +
   #lockdown
   geom_vline(xintercept = as.Date("2020-03-23"), linetype = "dashed", colour = "darkblue", size = 2) +
-  xlab("Date")+ylab("Coefficient on Remain Vote")+
+  xlab("Date")+ylab("Coefficients in Regression")+
   theme_classic()+
   theme(legend.position = "none") +
   facet_wrap(~term, scales = "free_y")
+
+ggsave("./fig/transit.png", height = 8, width = 8)
 
 ggsave("./fig/regression_coefs_time_series.png", height = 8, width = 8)
 
@@ -234,8 +333,8 @@ uk_april_3 <- uk_final %>%
   filter(date == "2020-04-03")
 
 
-wp_fit<-    lm(data =uk_april_3, workplace ~ pop_under_30+pop_over_70+density+I(REGION_NM))
-rem_fit<-   lm(data =uk_april_3, final_remain ~ pop_under_30+pop_over_70+density+I(REGION_NM))
+wp_fit<-    lm(data =uk_april_3, workplace ~ final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+density+I(REGION_NM))
+rem_fit<-   lm(data =uk_april_3, final_remain ~final_gdp_cap+final_gdp_pc_growth+ pop_under_30+pop_over_70+density+I(REGION_NM))
 
 uk_final_reg <- augment(wp_fit, uk_april_3)
 uk_final_reg <- uk_final_reg %>% 
@@ -274,38 +373,38 @@ se2=NULL
 
 reg1<-uk_final %>% 
   filter(date == "2020-04-03") %>% 
-  lm(data =., grocery ~ final_remain+pop_under_30+pop_over_70+density+I(REGION_NM)) 
+  lm(data =., grocery ~ final_remain+final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+density+I(REGION_NM)) 
 coef2[1]<-reg1$coefficient[2]
 se2[1]<-summary(reg1)$coefficients["final_remain", "Std. Error"]
 
 reg2<-uk_final %>% 
   filter(date == "2020-04-03") %>% 
-  lm(data =., parks ~ final_remain+pop_under_30+pop_over_70+density+I(REGION_NM)) 
+  lm(data =., parks ~ final_remain+final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+density+I(REGION_NM)) 
 coef2[2]<-reg2$coefficient[2]
 se2[2]<-summary(reg2)$coefficients["final_remain", "Std. Error"]
 
 reg3<-uk_final %>% 
   filter(date == "2020-04-03") %>% 
-  lm(data =., residential ~ final_remain+pop_under_30+pop_over_70+density+I(REGION_NM)) 
+  lm(data =., residential ~ final_remain+final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+density+I(REGION_NM)) 
 coef2[3]<-reg3$coefficient[2]
 se2[3]<-summary(reg3)$coefficients["final_remain", "Std. Error"]
 
 reg4<-uk_final %>% 
   filter(date == "2020-04-03") %>% 
-  lm(data =., retail_rec ~ final_remain+pop_under_30+pop_over_70+density+I(REGION_NM)) 
+  lm(data =., retail_rec ~ final_remain+final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+density+I(REGION_NM)) 
 coef2[4]<-reg4$coefficient[2]
 se2[4]<-summary(reg4)$coefficients["final_remain", "Std. Error"]
 
 
 reg5<-uk_final %>% 
   filter(date == "2020-04-03") %>% 
-  lm(data =., transit ~ final_remain+pop_under_30+pop_over_70+density+I(REGION_NM)) 
+  lm(data =., transit ~ final_remain+final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+density+I(REGION_NM)) 
 coef2[5]<-reg5$coefficient[2]
 se2[5]<-summary(reg5)$coefficients["final_remain", "Std. Error"]
 
 reg6<-uk_final %>% 
   filter(date == "2020-04-03") %>% 
-  lm(data =., workplace ~ final_remain+pop_under_30+pop_over_70+density+I(REGION_NM)) 
+  lm(data =., workplace ~ final_remain+final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+density+I(REGION_NM)) 
 coef2[6]<-reg6$coefficient[2]
 se2[6]<-summary(reg6)$coefficients["final_remain", "Std. Error"]
 
