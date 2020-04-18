@@ -1,12 +1,23 @@
+
+# preliminaries -----------------------------------------------------------
+
+
 #libraries
 library(tidyverse)
 library(Hmisc)
 library(lubridate)
 library(broom)
+library(gganimate)
+library(transformr)
 
-# All Google data and demographics from https://github.com/datasciencecampus/google-mobility-reports-data
 
-uk_local <- read_csv("./mobility_data/csvs/international_local_area_trends_G20_20200410.csv")
+# import google data ------------------------------------------------------
+
+
+
+# All Google data and demographics from https://github.com/datasciencecampus/google-mobility-reports-data - now UPDATED to 04-17 data
+
+uk_local <- read_csv("./mobility_data/csvs/international_local_area_trends_G20_20200417.csv")
 
 uk_local <- uk_local %>% 
   filter(Country=="GB")
@@ -63,6 +74,10 @@ county_lad_england <- read_csv("./other_data/Local_Authority_District_to_County_
 
 county_lad_england <- county_lad_england %>% 
   rename(Area_Code = LAD18CD)
+
+
+# import GDP data ---------------------------------------------------------
+
 
 
 # GDP per capita and growth by district or county or London: Taken from https://www.ons.gov.uk/economy/grossdomesticproductgdp/datasets/regionalgrossdomesticproductlocalauthorities
@@ -123,11 +138,7 @@ uk_final <- uk_final %>%
   left_join(gdp_data_co, by ="GSS_CD") %>% 
   left_join(gdp_data_la, by ="GSS_CD")
 
-uk_final %>% 
-  group_by(location) %>% 
-  summarise(county_gdp = mean(county_gdp_pc, na.rm=T),
-            la_gdp = mean(la_gdp_pc, na.rm=T)) %>% 
-  View()
+
 
 uk_final <- uk_final %>% 
   mutate(final_gdp_cap  = if_else(!is.na(la_gdp_pc), la_gdp_pc, county_gdp_pc),
@@ -151,7 +162,18 @@ uk_final <- uk_final %>%
                                    location=="Shropshire"~ -1.5,
                                    TRUE ~ final_gdp_pc_growth))
 
+# uk_final %>% 
+#   group_by(location) %>% 
+#   summarise(county_gdp = mean(county_gdp_pc, na.rm=T),
+#             la_gdp = mean(la_gdp_pc, na.rm=T),
+#             final_gdp = mean(final_gdp_cap, na.rm=T)) %>% 
+#   View()
+
 # Local authorities
+
+
+# import brexit data ------------------------------------------------------
+
 
 
 # Local authority level Brexit results from Electoral Commission: 
@@ -187,11 +209,11 @@ uk_final <- uk_final %>%
   left_join(uk_brexit_co, by = "GSS_CD") %>% 
   left_join(uk_brexit_la, by = "GSS_CD")
 
-uk_final %>% 
-  group_by(location) %>% 
-  summarise(county_remain = mean(county_remain, na.rm=T),
-            la_remain = mean(la_remain, na.rm=T)) %>% 
-  View()
+# uk_final %>% 
+#   group_by(location) %>% 
+#   summarise(county_remain = mean(county_remain, na.rm=T),
+#             la_remain = mean(la_remain, na.rm=T)) %>% 
+#   View()
 
 # This gives locations their local authority Brexit vote if they are LAs and their county Brexit vote if not.
 # Also have to manually enter vote for a few mismatches. 
@@ -214,12 +236,30 @@ uk_final <- uk_final %>%
 
 # Pops up dataset of averages to check - should just miss Northern Ireland
 
-uk_final %>% 
-  group_by(location) %>% 
-  summarise(remain = mean(final_remain, na.rm=T)) %>% 
-  View()
+# uk_final %>% 
+#   group_by(location) %>% 
+#   summarise(remain = mean(final_remain, na.rm=T)) %>% 
+#   View()
+
+
+# basic scatters ----------------------------------------------------------
+
+
 
 # Basic scatters
+
+uk_final %>% 
+  filter(date == "2020-03-13") %>% 
+  filter(location!="Na h-Eileanan an Iar") %>% 
+  ggplot(aes(x=final_remain, y=workplace))+
+  geom_text(aes(label=location))+
+  #geom_point(aes(size = AREALHECT))+
+  theme_classic()+
+  ylab("Percentage Reduction in Time at Workplace (March 13th)")+xlab("Remain Vote at LA / County")
+
+ggsave("./fig/brexit_social_distancing_mar_13.png", width = 10, height = 10)
+
+
 
 uk_final %>% 
   filter(date == "2020-04-03") %>% 
@@ -230,46 +270,206 @@ uk_final %>%
   theme_classic()+
   ylab("Percentage Reduction in Time at Workplace (April 3rd)")+xlab("Remain Vote at LA / County")
 
-ggsave("./fig/brexit_social_distancing.png", width = 8, height = 8)
+ggsave("./fig/brexit_social_distancing_apr_3.png", width = 10, height = 10)
+
+uk_final %>% 
+  filter(date == "2020-04-09") %>% 
+  filter(location!="Na h-Eileanan an Iar") %>% 
+  ggplot(aes(x=final_remain, y=workplace))+
+  geom_text(aes(label=location))+
+  #geom_point(aes(size = AREALHECT))+
+  theme_classic()+
+  ylab("Percentage Reduction in Time at Workplace (April 9th)")+xlab("Remain Vote at LA / County")
+
+ggsave("./fig/brexit_social_distancing_apr_9.png", width = 10, height = 10)
+
+
+uk_final %>% 
+  filter(date == "2020-03-13") %>% 
+  filter(location!="Na h-Eileanan an Iar") %>% 
+  ggplot(aes(x=final_gdp_cap, y=workplace))+
+  geom_text(aes(label=location))+
+  #geom_point(aes(size = AREALHECT))+
+  theme_classic()+
+  ylab("Percentage Reduction in Time at Workplace (March 13th)")+xlab("Remain Vote at LA / County")
+
+ggsave("./fig/brexit_social_distancing_gdp_mar_13.png", width = 10, height = 10)
+
+
+uk_final %>% 
+  filter(date == "2020-04-03") %>% 
+  filter(location!="Na h-Eileanan an Iar") %>% 
+  ggplot(aes(x=final_gdp_cap, y=workplace))+
+  geom_text(aes(label=location))+
+  #geom_point(aes(size = AREALHECT))+
+  theme_classic()+
+  ylab("Percentage Reduction in Time at Workplace (April 3rd)")+xlab("GDP per capita at LA / County")
+
+ggsave("./fig/brexit_social_distancing_gdp_apr_3.png", width = 10, height = 10)
+
+uk_final %>% 
+  filter(date == "2020-04-09") %>% 
+  filter(location!="Na h-Eileanan an Iar") %>% 
+  ggplot(aes(x=final_gdp_cap, y=workplace))+
+  geom_text(aes(label=location))+
+  #geom_point(aes(size = AREALHECT))+
+  theme_classic()+
+  ylab("Percentage Reduction in Time at Workplace (April 9th)")+xlab("GDP per capita at LA / County")
+
+ggsave("./fig/brexit_social_distancing_gdp_apr_9.png", width = 10, height = 10)
+
+uk_final %>% 
+  filter(date == "2020-03-13") %>% 
+  filter(location!="Na h-Eileanan an Iar") %>% 
+  ggplot(aes(x=density, y=workplace))+
+  geom_text(aes(label=location))+
+  #geom_point(aes(size = AREALHECT))+
+  theme_classic()+
+  scale_x_log10()+
+  ylab("Percentage Reduction in Time at Workplace (March 13th)")+xlab("Population Density at LA / County")
+
+ggsave("./fig/brexit_social_distancing_dens_mar_13.png", width = 10, height = 10)
+
+
+uk_final %>% 
+  filter(date == "2020-04-03") %>% 
+  filter(location!="Na h-Eileanan an Iar") %>% 
+  ggplot(aes(x=density, y=workplace))+
+  geom_text(aes(label=location))+
+  #geom_point(aes(size = AREALHECT))+
+  theme_classic()+
+  ylab("Percentage Reduction in Time at Workplace (April 3rd)")+xlab("Population Density at LA / County")
+
+ggsave("./fig/brexit_social_distancing_den_apr_3.png", width = 10, height = 10)
+
+uk_final %>% 
+  filter(date == "2020-04-09") %>% 
+  filter(location!="Na h-Eileanan an Iar") %>% 
+  ggplot(aes(x=density, y=workplace))+
+  geom_text(aes(label=location))+
+  #geom_point(aes(size = AREALHECT))+
+  theme_classic()+
+  ylab("Percentage Reduction in Time at Workplace (April 9th)")+xlab("Population Density at LA / County")
+
+ggsave("./fig/brexit_social_distancing_den_apr_9.png", width = 10, height = 10)
+
+
+# animated scatters -------------------------------------------------------
+
+  uk_final %>% 
+  filter(location!="Na h-Eileanan an Iar") %>% 
+  ggplot(aes(x=final_remain, y=workplace))+
+  #geom_text(aes(label=location))+
+  #geom_point(aes(size = AREALHECT))+
+  geom_point(aes(size=ALL_AGES), alpha=0.6)+
+  geom_smooth(method="lm", color="black")+
+  theme_classic()+
+  transition_time(date)+
+  ease_aes("linear")+
+  labs(title="Date:{frame_time}")+
+  theme(plot.title = element_text(hjust = 0.5), legend.position="none")+
+  ylab("Percentage Reduction in Time at Workplace")+xlab("Remain Vote at LA / County")
+
+anim_save("./fig/remain_animation.gif")
+
+
+uk_final %>% 
+  filter(location!="Na h-Eileanan an Iar") %>% 
+  ggplot(aes(x=final_gdp_cap, y=workplace))+
+  #geom_text(aes(label=location))+
+  #geom_point(aes(size = AREALHECT))+
+  geom_point(aes(size=ALL_AGES), alpha=0.6)+
+  geom_smooth(method="lm", color="black")+
+  theme_classic()+
+  transition_time(date)+
+  ease_aes("linear")+
+  labs(title="Date:{frame_time}")+
+  theme(plot.title = element_text(hjust = 0.5), legend.position="none")+
+  ylab("Percentage Reduction in Time at Workplace")+xlab("GDP per capita at LA / County")
+
+anim_save("./fig/gdp_animation.gif")
+
+uk_final %>% 
+  filter(location!="Na h-Eileanan an Iar") %>% 
+  ggplot(aes(x=log(density), y=workplace))+
+  #geom_text(aes(label=location))+
+  #geom_point(aes(size = AREALHECT))+
+  geom_point(aes(size=ALL_AGES), alpha=0.6)+
+  geom_smooth(method="lm", color="black")+
+  theme_classic()+
+  transition_time(date)+
+  ease_aes("linear")+
+  labs(title="Date:{frame_time}")+
+  theme(plot.title = element_text(hjust = 0.5), legend.position="none")+
+  ylab("Percentage Reduction in Time at Workplace")+xlab("Log(density) at LA / County")
+
+anim_save("./fig/density_animation.gif")
+
+# Animated scatters
+
+
+# regional plots ----------------------------------------------------------
+
+
 
 # By region
 
 uk_final %>% 
-  filter(date == "2020-04-03") %>% 
+  filter(date == "2020-04-09") %>% 
   filter(location!="Na h-Eileanan an Iar") %>% 
   filter(REGION_NM!="London" & REGION_NM !="Northern Ireland") %>% 
   ggplot(aes(x=final_remain, y=workplace))+
   geom_point()+
   theme_classic()+
-  ylab("Percentage Reduction in Time at Workplace (April 3rd)")+xlab("Remain Vote at LA / County")+
+  ylab("Percentage Reduction in Time at Workplace (April 9th)")+xlab("Remain Vote at LA / County")+
   facet_wrap(~REGION_NM)
 
 ggsave("./fig/regions.png", width = 8, height=  8)
+
+
+# regressions -------------------------------------------------------------
+
+
 
 ### Regression Analyses
  
 uk_final %>% 
   filter(date == "2020-04-03") %>% 
-  lm(data =., workplace ~ final_remain+pop_under_30+pop_over_70+density+I(REGION_NM)) %>% 
+  lm(data =., workplace ~ final_remain+pop_under_30+pop_over_70+log(density)+I(REGION_NM)) %>% 
   summary()
 
 uk_final %>% 
   filter(date == "2020-04-03") %>% 
-  lm(data =., workplace ~ final_remain+ final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+density+I(REGION_NM)) %>% 
+  lm(data =., workplace ~ final_remain+ final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+log(density)+I(REGION_NM)) %>% 
+  summary()
+
+uk_final %>% 
+  filter(date == "2020-04-09") %>% 
+  lm(data =., workplace ~ final_remain+ final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+log(density)+I(REGION_NM)) %>% 
+  summary()
+
+uk_final %>% 
+  filter(date == "2020-04-09") %>% 
+  lm(data =., residential ~ final_remain+ final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+log(density)+I(REGION_NM)) %>% 
   summary()
 
 
 uk_final %>% 
   filter(date == as.Date("2020-03-17")) %>% 
-  lm(data =., workplace ~ final_remain++ final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+density+I(REGION_NM)) %>% 
+  lm(data =., workplace ~ final_remain++ final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+log(density)+I(REGION_NM)) %>% 
   summary()
+
+
+
+# time series of coefficients ---------------------------------------------
+
 
 # Time series of workplace coefficients
 
 #map for faster, tidier and grab all coeficiens from regression
 coefs_map <- map_df(unique(uk_final$date), function(date_i) {
   filtered_data <- filter(uk_final, date == date_i) %>%
-    lm(data =., workplace ~ final_remain+final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+density+I(REGION_NM)) %>%
+    lm(data =., workplace ~ final_remain+final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+log(density)+I(REGION_NM)) %>%
     broom::tidy() %>%
     rename(coef = estimate, se = std.error) %>%
     mutate(date = date_i)
@@ -278,14 +478,15 @@ coefs_map <- map_df(unique(uk_final$date), function(date_i) {
 coefs_map <- coefs_map %>% 
   mutate(upper = coef+2*se,
          lower = coef-2*se) %>% 
-  filter(term %in% c("final_remain", "final_gdp_cap", "final_gdp_pc_growth", "pop_under_30", "pop_over_70", "density"))
+  filter(term %in% c("final_remain", "final_gdp_cap", "final_gdp_pc_growth", "pop_under_30", "pop_over_70", "log(density)"))
 
 #is it the weekend
 #you probably want a case_when for easter friday and monday which I assume isn't in the dataset yet
 weekend_df <- data.frame(date = unique(coefs_map$date)) %>%
   mutate(day = weekdays(date)) %>%
   mutate(weekend= case_when(
-    day %in% c("Saturday", "Sunday") ~ 1
+    day %in% c("Saturday", "Sunday") ~ 1,
+    date==as.Date("2020-04-10") ~ 1
     #day is easter monday/friday ~ 1
   ))
 
@@ -293,18 +494,24 @@ coefs_map %>%
   left_join(weekend_df) %>%
   ggplot(aes(x = date, y = coef))+
   geom_line()+
-  geom_ribbon(aes(ymin=lower, ymax = upper, alpha=0.3), color="lightgray")+
-  #doesn't play very well with all the faceting etc. and cba work it out
-  #geom_rect(aes(xmin = date, xmax = lead(date), ymin = -Inf, ymax = Inf, fill = "green"), alpha = 0.2) +
+  #doesn't play very well with all the faceting etc. and cba work it out - hacky fix by BA but looks ugly
+  # geom_rect(aes(xmin = as.Date("2020-02-29"), xmax = as.Date("2020-03-01"), ymin = -Inf, ymax = Inf, alpha=0.1), fill="light green", alpha = 0.1) +
+  # geom_rect(aes(xmin = as.Date("2020-03-07"), xmax = as.Date("2020-03-08"), ymin = -Inf, ymax = Inf), fill="light green", alpha = 0.1) +
+  # geom_rect(aes(xmin = as.Date("2020-03-14"), xmax = as.Date("2020-03-15"), ymin = -Inf, ymax = Inf), fill="light green", alpha = 0.1) +
+  # geom_rect(aes(xmin = as.Date("2020-03-21"), xmax = as.Date("2020-03-22"), ymin = -Inf, ymax = Inf), fill="light green", alpha = 0.1) +
+  # geom_rect(aes(xmin = as.Date("2020-03-28"), xmax = as.Date("2020-03-29"), ymin = -Inf, ymax = Inf), fill="light green", alpha = 0.1) +
+  # geom_rect(aes(xmin = as.Date("2020-04-04"), xmax = as.Date("2020-04-05"), ymin = -Inf, ymax = Inf), fill="light green", alpha = 0.1) +
+  # geom_rect(aes(xmin = as.Date("2020-04-10"), xmax = as.Date("2020-04-12"), ymin = -Inf, ymax = Inf), fill="light green", alpha = 0.1) +
   geom_hline(yintercept = 0, linetype = "dashed", colour = "red") +
+  geom_ribbon(aes(ymin=lower, ymax = upper, alpha=0.3), color="lightgray")+
   #lockdown
-  geom_vline(xintercept = as.Date("2020-03-23"), linetype = "dashed", colour = "darkblue", size = 2) +
+  geom_vline(xintercept = as.Date("2020-03-23"), linetype = "dashed", colour = "darkblue", size = 1) +
   xlab("Date")+ylab("Coefficients in Regression")+
   theme_classic()+
   theme(legend.position = "none") +
   facet_wrap(~term, scales = "free_y")
 
-ggsave("./fig/transit.png", height = 8, width = 8)
+ggsave("./fig/workplace.png", height = 8, width = 8)
 
 ggsave("./fig/regression_coefs_time_series.png", height = 8, width = 8)
 
@@ -327,14 +534,141 @@ coefs_map %>%
 ggsave("./fig/remain_regression_coefs_time_series.png", height = 8, width = 8)
 
 
+
+
+# different types of activity ---------------------------------------------
+
+
+### Graph with different dependent variables
+
+
+coefs_map_a <- map_df(unique(uk_final$date), function(date_i) {
+  filtered_data <- filter(uk_final, date == date_i) %>%
+    lm(data =., grocery ~ final_remain+final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+log(density)+I(REGION_NM)) %>%
+    broom::tidy() %>%
+    rename(coef = estimate, se = std.error) %>%
+    mutate(date = date_i,
+           response = "Grocery")
+})
+
+coefs_map_b <- map_df(unique(uk_final$date), function(date_i) {
+  filtered_data <- filter(uk_final, date == date_i) %>%
+    lm(data =., parks ~ final_remain+final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+log(density)+I(REGION_NM)) %>%
+    broom::tidy() %>%
+    rename(coef = estimate, se = std.error) %>%
+    mutate(date = date_i,
+           response = "Parks")
+})
+
+coefs_map_c <- map_df(unique(uk_final$date), function(date_i) {
+  filtered_data <- filter(uk_final, date == date_i) %>%
+    lm(data =., residential ~ final_remain+final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+log(density)+I(REGION_NM)) %>%
+    broom::tidy() %>%
+    rename(coef = estimate, se = std.error) %>%
+    mutate(date = date_i,
+           response = "Residential")
+})
+
+coefs_map_d <- map_df(unique(uk_final$date), function(date_i) {
+  filtered_data <- filter(uk_final, date == date_i) %>%
+    lm(data =., retail_rec ~ final_remain+final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+log(density)+I(REGION_NM)) %>%
+    broom::tidy() %>%
+    rename(coef = estimate, se = std.error) %>%
+    mutate(date = date_i,
+           response= "Retail / Recreation")
+})
+
+coefs_map_e <- map_df(unique(uk_final$date), function(date_i) {
+  filtered_data <- filter(uk_final, date == date_i) %>%
+    lm(data =., transit ~ final_remain+final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+log(density)+I(REGION_NM)) %>%
+    broom::tidy() %>%
+    rename(coef = estimate, se = std.error) %>%
+    mutate(date = date_i,
+           response = "Transit")
+})
+
+coefs_map_f<- map_df(unique(uk_final$date), function(date_i) {
+  filtered_data <- filter(uk_final, date == date_i) %>%
+    lm(data =., workplace ~ final_remain+final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+log(density)+I(REGION_NM)) %>%
+    broom::tidy() %>%
+    rename(coef = estimate, se = std.error) %>%
+    mutate(date = date_i,
+           response = "Workplace")
+})
+
+coefs_map_2 <- bind_rows(coefs_map_a, coefs_map_b, coefs_map_c, coefs_map_d, coefs_map_e, coefs_map_f)
+
+coefs_map_2 <- coefs_map_2 %>% 
+  mutate(upper = coef+2*se,
+         lower = coef-2*se) %>% 
+  filter(term %in% c("final_remain", "final_gdp_cap", "final_gdp_pc_growth", "pop_under_30", "pop_over_70", "log(density)"))
+
+## Effects of Remain Vote on Different DVs
+
+coefs_map_2 %>% 
+  left_join(weekend_df) %>%
+  filter(term=="final_remain") %>% 
+  ggplot(aes(x = date, y = coef))+
+  geom_line()+
+  geom_hline(yintercept = 0, linetype = "dashed", colour = "red") +
+  geom_ribbon(aes(ymin=lower, ymax = upper, alpha=0.3), color="lightgray")+
+  #lockdown
+  geom_vline(xintercept = as.Date("2020-03-23"), linetype = "dashed", colour = "darkblue", size = 1) +
+  xlab("Date")+ylab("Coefficients on Remain Vote")+
+  theme_classic()+
+  theme(legend.position = "none") +
+  facet_wrap(~response, scales = "free_y")
+
+ggsave("./fig/remain_all_dvs.png", height = 8, width = 8)
+
+## Effects of GDP per capita on Different DVs
+
+coefs_map_2 %>% 
+  left_join(weekend_df) %>%
+  filter(term=="final_gdp_cap") %>% 
+  ggplot(aes(x = date, y = coef))+
+  geom_line()+
+  geom_hline(yintercept = 0, linetype = "dashed", colour = "red") +
+  geom_ribbon(aes(ymin=lower, ymax = upper, alpha=0.3), color="lightgray")+
+  #lockdown
+  geom_vline(xintercept = as.Date("2020-03-23"), linetype = "dashed", colour = "darkblue", size = 1) +
+  xlab("Date")+ylab("Coefficients on GDP per capita")+
+  theme_classic()+
+  theme(legend.position = "none") +
+  facet_wrap(~response, scales = "free_y")
+
+ggsave("./fig/gdp_all_dvs.png", height = 8, width = 8)
+
+## Effects of Density on Different DVs
+
+coefs_map_2 %>% 
+  left_join(weekend_df) %>%
+  filter(term=="log(density)") %>% 
+  ggplot(aes(x = date, y = coef))+
+  geom_line()+
+  geom_hline(yintercept = 0, linetype = "dashed", colour = "red") +
+  geom_ribbon(aes(ymin=lower, ymax = upper, alpha=0.3), color="lightgray")+
+  #lockdown
+  geom_vline(xintercept = as.Date("2020-03-23"), linetype = "dashed", colour = "darkblue", size = 1) +
+  xlab("Date")+ylab("Coefficients on Log Density")+
+  theme_classic()+
+  theme(legend.position = "none") +
+  facet_wrap(~response, scales = "free_y")
+
+ggsave("./fig/density_all_dvs.png", height = 8, width = 8)
+
+
+# partial regression plots ------------------------------------------------
+
+
 # Partial Regression Graph
 
 uk_april_3 <- uk_final %>% 
   filter(date == "2020-04-03")
 
 
-wp_fit<-    lm(data =uk_april_3, workplace ~ final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+density+I(REGION_NM))
-rem_fit<-   lm(data =uk_april_3, final_remain ~final_gdp_cap+final_gdp_pc_growth+ pop_under_30+pop_over_70+density+I(REGION_NM))
+wp_fit<-    lm(data =uk_april_3, workplace ~ final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+log(density)+I(REGION_NM))
+rem_fit<-   lm(data =uk_april_3, final_remain ~final_gdp_cap+final_gdp_pc_growth+ pop_under_30+pop_over_70+log(density)+I(REGION_NM))
 
 uk_final_reg <- augment(wp_fit, uk_april_3)
 uk_final_reg <- uk_final_reg %>% 
@@ -362,6 +696,116 @@ uk_final_reg %>%
   ylab("Percentage Reduction in Time at Workplace - Residual (April 3)")+xlab("Remain Vote at LA / County (Residual)")
 
 ggsave("./fig/apr_3_partial_regression.png", width=10, height=10)
+
+
+uk_april_9 <- uk_final %>% 
+  filter(date == "2020-04-09")
+
+
+wp_fit<-    lm(data =uk_april_9, workplace ~ final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+log(density)+I(REGION_NM))
+rem_fit<-   lm(data =uk_april_9, final_remain ~final_gdp_cap+final_gdp_pc_growth+ pop_under_30+pop_over_70+log(density)+I(REGION_NM))
+
+uk_final_reg <- augment(wp_fit, uk_april_9)
+uk_final_reg <- uk_final_reg %>% 
+  select(location:.resid) %>% 
+  rename(wp_fitted = .fitted,
+         wp_se_fit = .se.fit,
+         wp_resid = .resid)
+
+
+uk_final_reg <-augment(rem_fit, uk_final_reg)
+uk_final_reg <- uk_final_reg %>% 
+  select(location:.resid) %>% 
+  rename(rem_fitted = .fitted,
+         rem_se_fit = .se.fit,
+         rem_resid = .resid)
+
+uk_final_reg %>% 
+  filter(date == "2020-04-09") %>% 
+  filter(location!="Na h-Eileanan an Iar") %>% 
+  ggplot(aes(x=rem_resid, y=wp_resid))+
+  geom_text(aes(label=location))+
+  geom_smooth(method="lm", color="black", size=0.5)+
+  #geom_point(aes(size = AREALHECT))+
+  theme_classic()+
+  ylab("Percentage Reduction in Time at Workplace - Residual (April 9)")+xlab("Remain Vote at LA / County (Residual)")
+
+ggsave("./fig/apr_9_partial_regression.png", width=10, height=10)
+
+
+uk_april_9 <- uk_final %>% 
+  filter(date == "2020-04-09")
+
+
+wp_fit<-    lm(data =uk_april_9, workplace ~ final_remain+final_gdp_pc_growth+pop_under_30+pop_over_70+log(density)+I(REGION_NM))
+gdp_fit<-   lm(data =uk_april_9, final_gdp_cap ~final_remain+final_gdp_pc_growth+ pop_under_30+pop_over_70+log(density)+I(REGION_NM))
+
+uk_final_reg <- augment(wp_fit, uk_april_9)
+uk_final_reg <- uk_final_reg %>% 
+  select(location:.resid) %>% 
+  rename(wp_fitted = .fitted,
+         wp_se_fit = .se.fit,
+         wp_resid = .resid)
+
+
+uk_final_reg <-augment(gdp_fit, uk_final_reg)
+uk_final_reg <- uk_final_reg %>% 
+  select(location:.resid) %>% 
+  rename(gdp_fitted = .fitted,
+         gdp_se_fit = .se.fit,
+         gdp_resid = .resid)
+
+uk_final_reg %>% 
+  filter(date == "2020-04-09") %>% 
+  filter(location!="Na h-Eileanan an Iar") %>% 
+  ggplot(aes(x=gdp_resid, y=wp_resid))+
+  geom_text(aes(label=location))+
+  geom_smooth(method="lm", color="black", size=0.5)+
+  #geom_point(aes(size = AREALHECT))+
+  theme_classic()+
+  ylab("Percentage Reduction in Time at Workplace - Residual (April 9)")+xlab("GDP per capita at LA / County (Residual)")
+
+ggsave("./fig/apr_9_partial_regression_gdp.png", width=10, height=10)
+
+
+uk_april_9 <- uk_final %>% 
+  filter(date == "2020-04-09")
+
+
+wp_fit<-    lm(data =uk_april_9, workplace ~ final_remain+final_gdp_cap+final_gdp_pc_growth+pop_under_30+pop_over_70+I(REGION_NM))
+den_fit<-   lm(data =uk_april_9, log(density) ~final_remain+final_gdp_cap+final_gdp_pc_growth+ pop_under_30+pop_over_70+I(REGION_NM))
+
+uk_final_reg <- augment(wp_fit, uk_april_9)
+uk_final_reg <- uk_final_reg %>% 
+  select(location:.resid) %>% 
+  rename(wp_fitted = .fitted,
+         wp_se_fit = .se.fit,
+         wp_resid = .resid)
+
+
+uk_final_reg <-augment(den_fit, uk_final_reg)
+uk_final_reg <- uk_final_reg %>% 
+  select(location:.resid) %>% 
+  rename(den_fitted = .fitted,
+         den_se_fit = .se.fit,
+         den_resid = .resid)
+
+uk_final_reg %>% 
+  filter(date == "2020-04-09") %>% 
+  filter(location!="Na h-Eileanan an Iar") %>% 
+  ggplot(aes(x=den_resid, y=wp_resid))+
+  geom_text(aes(label=location))+
+  geom_smooth(method="lm", color="black", size=0.5)+
+  #geom_point(aes(size = AREALHECT))+
+  theme_classic()+
+  ylab("Percentage Reduction in Time at Workplace - Residual (April 9)")+xlab("Log(Density) at LA / County (Residual)")
+
+ggsave("./fig/apr_9_partial_regression_den.png", width=10, height=10)
+
+
+
+# chef plots by date ------------------------------------------------------
+
 
 
 # Different Activity Measures
