@@ -9,6 +9,7 @@ library(lubridate)
 library(broom)
 library(gganimate)
 library(transformr)
+library(gtools)
 
 
 # import google data ------------------------------------------------------
@@ -244,7 +245,18 @@ uk_final <- uk_final %>%
 
 # basic scatters ----------------------------------------------------------
 
+uk_final <- uk_final %>% 
+  mutate(income_quint = quantcut(final_gdp_cap, q=5))
 
+levels(uk_final$income_quint)
+
+uk_final <-uk_final %>% 
+  mutate(income_quint = as.character(income_quint)) %>% 
+  mutate(income_quint = case_when(income_quint=="[1.37e+04,2.09e+04]" ~"1st Quintile",
+                                  income_quint=="(2.09e+04,2.4e+04]" ~"2nd Quintile",
+                                  income_quint == "(2.4e+04,2.76e+04]" ~"3rd Quintile",
+                                  income_quint == "(2.76e+04,3.39e+04]" ~"4th Quintile",
+                                  income_quint == "(3.39e+04,5.84e+04]" ~"5th Quintile"))
 
 # Basic scatters
 
@@ -347,9 +359,10 @@ uk_final %>%
   filter(location!="Na h-Eileanan an Iar") %>% 
   ggplot(aes(x=density, y=workplace))+
   geom_text(aes(label=location))+
+  scale_x_log10()+
   #geom_point(aes(size = AREALHECT))+
   theme_classic()+
-  ylab("Percentage Reduction in Time at Workplace (April 9th)")+xlab("Population Density at LA / County")
+  ylab("Percentage Reduction in Time at Workplace (April 9th)")+xlab("Population Density at LA / County (logged)")
 
 ggsave("./fig/brexit_social_distancing_den_apr_9.png", width = 10, height = 10)
 
@@ -370,7 +383,7 @@ ggsave("./fig/brexit_social_distancing_den_apr_9.png", width = 10, height = 10)
   theme(plot.title = element_text(hjust = 0.5), legend.position="none")+
   ylab("Percentage Reduction in Time at Workplace")+xlab("Remain Vote at LA / County")
 
-anim_save("./fig/remain_animation.gif")
+anim_save("./fig/remain_animation.gif", width=1000, height=1000)
 
 
 uk_final %>% 
@@ -410,9 +423,20 @@ anim_save("./fig/density_animation.gif")
 
 # regional plots ----------------------------------------------------------
 
+uk_final %>% 
+  filter(date == "2020-04-09") %>% 
+  filter(location!="Na h-Eileanan an Iar") %>% 
+  ggplot(aes(x=final_remain, y=workplace))+
+  geom_point()+
+  theme_classic()+
+  ylab("Percentage Reduction in Time at Workplace (April 9th)")+xlab("Remain Vote at LA / County")+
+  facet_wrap(~income_quint)
 
+ggsave("./fig/income_quintile.png", width = 10, height=  10)
 
 # By region
+
+
 
 uk_final %>% 
   filter(date == "2020-04-09") %>% 
@@ -424,7 +448,7 @@ uk_final %>%
   ylab("Percentage Reduction in Time at Workplace (April 9th)")+xlab("Remain Vote at LA / County")+
   facet_wrap(~REGION_NM)
 
-ggsave("./fig/regions.png", width = 8, height=  8)
+ggsave("./fig/regions.png", width = 10, height=  10)
 
 
 # regressions -------------------------------------------------------------
