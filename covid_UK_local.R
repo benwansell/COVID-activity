@@ -258,6 +258,8 @@ uk_final <-uk_final %>%
                                   income_quint == "(2.76e+04,3.39e+04]" ~"4th Quintile",
                                   income_quint == "(3.39e+04,5.84e+04]" ~"5th Quintile"))
 
+write_csv(uk_final, "uk_final.csv")
+
 # Basic scatters
 
 uk_final %>% 
