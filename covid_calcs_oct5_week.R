@@ -1,6 +1,6 @@
 # Use Government API to download COVID case data
 
-#remotes::install_github("publichealthengland/coronavirus-dashboard-api-R-sdk")
+remotes::install_github("publichealthengland/coronavirus-dashboard-api-R-sdk")
 # Use https://coronavirus.data.gov.uk/developers-guide#sdks
 
 library(tidyverse)
