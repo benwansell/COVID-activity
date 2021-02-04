@@ -1,3 +1,7 @@
+library(tidyverse)
+library(broom)
+
+
 a<-data.frame(
   stringsAsFactors = FALSE,
            country = c("Argentina","Austria",
