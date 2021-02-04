@@ -254,4 +254,41 @@ aberdeen %>%
        WHO_index+Urban_pop+Gdp_per_cap+UVR_level+BCG_vacc+stringency) %>% 
   summary(.)
 
+# To make a residualized plot (slightly hacky but gets correct estimate)
+
+
+no_flights <- aberdeen %>% 
+  lm(data =.,  log_deaths_per_cap ~ log_pop+over_65+Pollution.levels+Mean_temp+Pop_dens+neoplasms+hypertension+
+       WHO_index+Urban_pop+Gdp_per_cap+UVR_level+BCG_vacc+stringency) %>% 
+  augment()
+
+no_flights <-  no_flights %>% 
+  select(.resid) %>% 
+  rename(resid_deaths = .resid)
+
+
+
+flights_aug <- aberdeen %>% 
+  lm(data =.,  flights_per_cap ~ log_pop+over_65+Pollution.levels+Mean_temp+Pop_dens+neoplasms+hypertension+
+       WHO_index+Urban_pop+Gdp_per_cap+UVR_level+BCG_vacc+stringency) %>% 
+  augment()
+
+flights <- flights_aug %>% 
+  select(.resid) %>% 
+  rename(resid_flights = .resid)
+
+aberdeen_plus <- cbind(aberdeen, no_flights, flights)
+
+aberdeen_plus %>% 
+  lm(data = ., resid_deaths ~ resid_flights) %>% 
+  summary()
+
+aberdeen_plus %>% 
+  ggplot(aes(x = resid_flights, y = resid_deaths, label = Iso3))+
+  geom_text()+
+  geom_smooth(method = "lm")+
+  theme_classic()+
+  labs(x = "Flights per capita (residualized)", y = "Log deaths per capita (residualized")
+  
+
 
