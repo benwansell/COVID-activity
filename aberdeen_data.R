@@ -1,7 +1,6 @@
 library(tidyverse)
 library(broom)
 
-
 a<-data.frame(
   stringsAsFactors = FALSE,
            country = c("Argentina","Austria",
@@ -231,10 +230,59 @@ aberdeen <-  aberdeen %>%
          flights_per_cap = arrivals_mil / pop,
          log_flights_per_cap = log(flights_per_cap))
 
+aberdeen <- aberdeen %>% 
+  mutate(region = case_when(Iso3 %in% c("ARG", "BRA", "ECU", "CHL", "COL", "PER") ~ "South America",
+                            Iso3 %in% c("AUT", "BEL", "CHE", "DEU", "ESP", "FIN", "FRA", "GBR", "HUN",
+                                        "IRL", "ITA", "NLD", "POL", "PRT", "ROU", "SWE", "UKR", "RUS") ~"Europe",
+                            Iso3 %in% c("CAN", "DOM", "MEX", "USA") ~ "North America",
+                            Iso3 %in% c("DZA", "EGY", "ZAF") ~ "Africa",
+                            Iso3 %in% c("JPN", "IDN", "IND", "TUR", "SAU", "PHL") ~ "Asia"),
+         gdp_quartile= ntile(Gdp_per_cap, 4)
+  )
+
 #Table 2 univariable analysis with adjusted variables
 
 aberdeen %>% 
   lm(data =.,  log_deaths_per_cap ~flights_per_cap) %>% 
+  summary(.)
+
+aberdeen %>% 
+  filter(region=="Europe") %>% 
+  ggplot(aes(x = flights_per_cap, y = log_deaths_per_cap, label = Iso3))+
+  geom_text()+
+  geom_smooth(method = "lm")+
+  theme_classic()+
+  labs(x = "Flights per capita", y = "Log deaths per capita (daily)")
+
+
+
+aberdeen %>% 
+  ggplot(aes(x = flights_per_cap, y = log_deaths_per_cap, label = Iso3))+
+  geom_text()+
+  geom_smooth(method = "lm")+
+  theme_classic()+
+  facet_wrap(~region)
+
+aberdeen %>% 
+  ggplot(aes(x = flights_per_cap, y = log_deaths_per_cap, label = Iso3))+
+  geom_text()+
+  geom_smooth(method = "lm")+
+  theme_classic()+
+  facet_wrap(~gdp_quartile)
+
+# Trivariate Analysis
+
+aberdeen %>% 
+  lm(data =.,  log_deaths_per_cap ~flights_per_cap+region) %>% 
+  summary(.)
+
+aberdeen %>% 
+  filter(region=="Europe") %>% 
+  lm(data =.,  log_deaths_per_cap ~flights_per_cap) %>% 
+  summary(.)
+
+aberdeen %>% 
+  lm(data =.,  log_deaths_per_cap ~flights_per_cap+Gdp_per_cap) %>% 
   summary(.)
 
 #Table 2 multivariable analysis
@@ -253,10 +301,12 @@ aberdeen %>%
 
 #Table 2 multivariable analysis (logged)
 
+
 aberdeen %>% 
   lm(data =.,  log_deaths_per_cap ~ log_pop+over_65+Pollution.levels+Mean_temp+log_flights_per_cap+Pop_dens+neoplasms+hypertension+
        WHO_index+Urban_pop+Gdp_per_cap+UVR_level+BCG_vacc+stringency) %>% 
   summary(.)
+
 
 # To make a residualized plot (slightly hacky but gets correct estimate)
 
@@ -294,5 +344,3 @@ aberdeen_plus %>%
   theme_classic()+
   labs(x = "Flights per capita (residualized)", y = "Log deaths per capita (residualized")
   
-
-
